@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🤖 ChatterSphere - Gemini AI PDF Chatbot
 
-## Getting Started
+ChatterSphere is a modern React-based chatbot UI built with TypeScript and Tailwind CSS that integrates with **Google's Gemini API**. It allows users to upload PDF files and chat contextually based on the uploaded document.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🧠 Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- 📩 **Chat Interface** with typing indicator
+- 📎 **PDF Upload** (via file picker)
+- 📄 **In-browser PDF Parsing** using [pdf.js CDN](https://cdnjs.com/libraries/pdf.js)
+- 🤖 **Contextual Q&A** based on parsed PDF content
+- 🧵 Smooth scrolling chat with message history
+- 🔐 Gemini API Integration using `gemini-2.0-flash-lite`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🚀 Technologies Used
 
-## Learn More
+- **React 18** + **TypeScript**
+- **Tailwind CSS**
+- **pdf.js (via CDN)** for client-side PDF parsing
+- **Google Gemini API** (`v1beta` endpoint)
+- **lucide-react** for icons
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📁 File Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+📦 your-app
+┣ 📁 components
+┃ ┗ 📄 ui/...
+┣ 📄 ChatBotUI.tsx # Main component
+┣ 📄 README.md
+┗
+---
 
-## Deploy on Vercel
+## 🔧 Setup Instructions :
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  - step: Clone the repository
+    ```bash
+      - git clone https://github.com/your-username/chattersphere.git
+      - cd chattersphere
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+  - step: Install dependencies
+    ```bash
+      - npm install
+
+  - step: Set up Gemini API Key
+    description: |
+      Create a `.env.local` file in the root of your project and add your Gemini API key.
+      Avoid hardcoding your API key directly in the code for production use.
+    file: .env.local
+    content:
+    ```bash
+      NEXT_PUBLIC_GEMINI_API_KEY=your_google_generative_ai_key
+
+  - step: Update the code to use environment variable
+    file: ChatBotUI.tsx
+    replace_line_with:
+    ```bash
+      const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+  - step: Start the development server
+    commands:
+    ```bash
+      - npm run dev
+
+  - step: Open the app in browser
+    ```bash
+    url: http://localhost:3000
