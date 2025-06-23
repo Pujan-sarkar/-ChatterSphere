@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect, ChangeEvent } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  ChangeEvent,
+  useCallback,
+} from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,17 +21,67 @@ interface Message {
   fileName?: string;
 }
 
+declare global {
+  interface Window {
+    pdfjsLib: any;
+  }
+}
+
 export default function ChatBotUI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [pdfContent, setPdfContent] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const API_KEY = "AIzaSyDeADG2d12B0IZlgDvE5NyXFVPhjkdS698"; // ⚠️ Replace in production
+  const MODEL = "gemini-2.0-flash-lite";
+  const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+
+  // Load PDF.js script dynamically
+  useEffect(() => {
+    const loadPdfJs = async () => {
+      if (!window.pdfjsLib) {
+        const script = document.createElement("script");
+        script.src =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js";
+        script.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+        };
+        document.body.appendChild(script);
+      }
+    };
+    loadPdfJs();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
+  const buildGeminiHistory = () => {
+    const history = messages.map((msg) => ({
+      role: msg.sender === "user" ? "user" : "model",
+      parts: [{ text: msg.text }],
+    }));
+
+    if (input.trim()) {
+      let fullPrompt = input;
+      if (pdfContent) {
+        fullPrompt = `Answer this based on the PDF content:\n\n${pdfContent}\n\nQuestion: ${input}`;
+      }
+
+      history.push({
+        role: "user",
+        parts: [{ text: fullPrompt }],
+      });
+    }
+
+    return history;
+  };
+
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
@@ -36,24 +92,70 @@ export default function ChatBotUI() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: buildGeminiHistory(),
+          generationConfig: { responseMimeType: "text/plain" },
+        }),
+      });
+
+      const data = await response.json();
+      const text =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "❌ AI failed to respond.";
+
       const botMessage: Message = {
         id: Date.now() + 1,
-        text: `🤖 Dummy AI: I received your message — '${userMessage.text}'`,
+        text,
         sender: "bot",
       };
+
       setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 2,
+          text: "❌ Error contacting AI.",
+          sender: "bot",
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const parsePdfFile = useCallback(async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item: any) => item.str).join(" ");
+      text += `Page ${i}: ${pageText}\n\n`;
+    }
+
+    console.log("📄 Parsed PDF content:\n", text);
+    setPdfContent(text);
+  }, []);
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !file.name.endsWith(".pdf")) {
+      alert("Only PDF files are supported!");
+      return;
+    }
 
     const userFileMessage: Message = {
       id: Date.now(),
-      text: `📎 File uploaded: ${file.name}`,
+      text: `📎 Uploaded PDF: ${file.name}`,
       sender: "user",
       isFile: true,
       fileName: file.name,
@@ -61,16 +163,25 @@ export default function ChatBotUI() {
 
     setMessages((prev) => [...prev, userFileMessage]);
 
-    setTimeout(() => {
+    try {
+      await parsePdfFile(file);
       const botMessage: Message = {
         id: Date.now() + 1,
-        text: `🤖 Dummy AI: Thanks for uploading '${file.name}'!`,
+        text: `🤖 PDF '${file.name}' processed. You can now ask questions related to it.`,
         sender: "bot",
       };
       setMessages((prev) => [...prev, botMessage]);
-    }, 1000);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 2,
+          text: "❌ Failed to parse the PDF.",
+          sender: "bot",
+        },
+      ]);
+    }
 
-    // Reset file input so the same file can be uploaded again if needed
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -102,6 +213,13 @@ export default function ChatBotUI() {
                     </div>
                   </div>
                 ))}
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="max-w-sm p-3 rounded-xl text-sm bg-secondary text-secondary-foreground animate-pulse">
+                      🤖 Typing...
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
@@ -122,31 +240,29 @@ export default function ChatBotUI() {
             className="flex-1"
           />
 
-          {/* Hidden file input */}
           <input
             type="file"
+            accept="application/pdf"
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
           />
 
-          {/* File upload button */}
           <Button
             type="button"
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
             size="icon"
             className="text-muted-foreground hover:text-primary transition-colors"
-            aria-label="Upload file"
+            aria-label="Upload PDF"
           >
             <Upload className="w-5 h-5" />
           </Button>
 
-          {/* Send message button */}
           <Button
             type="submit"
             size="icon"
-            disabled={!input.trim()}
+            disabled={!input.trim() || isTyping}
             className="-mb-1"
             aria-label="Send message"
           >
