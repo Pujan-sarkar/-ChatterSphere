@@ -24,6 +24,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      {/* ✅ This ensures metadata like <title> gets injected properly */}
+      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
