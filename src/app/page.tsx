@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Upload, Sun, Moon } from "lucide-react";
+import { Send, Upload, Sun, Moon, Pencil, Check, X } from "lucide-react";
 
 interface Message {
   id: number;
@@ -33,6 +33,8 @@ export default function ChatBotUI() {
   const [isTyping, setIsTyping] = useState(false);
   const [pdfContent, setPdfContent] = useState<string | null>(null);
   const [isDark, setIsDark] = useState<boolean>(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,46 +72,37 @@ export default function ChatBotUI() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const buildGeminiHistory = () => {
-    const history = messages.map((msg) => ({
-      role: msg.sender === "user" ? "user" : "model",
-      parts: [{ text: msg.text }],
-    }));
+  const sendToBot = async (textToSend: string) => {
+    const userMessage: Message = {
+      id: Date.now(),
+      text: textToSend,
+      sender: "user",
+    };
 
-    if (input.trim()) {
-      let fullPrompt = input;
+    setMessages((prev) => [...prev, userMessage]);
+    setIsTyping(true);
+
+    try {
+      const history = messages.map((msg) => ({
+        role: msg.sender === "user" ? "user" : "model",
+        parts: [{ text: msg.text }],
+      }));
+
+      let fullPrompt = textToSend;
       if (pdfContent) {
-        fullPrompt = `Answer this based on the PDF content:\n\n${pdfContent}\n\nQuestion: ${input}`;
+        fullPrompt = `Answer this based on the PDF content:\n\n${pdfContent}\n\nQuestion: ${textToSend}`;
       }
 
       history.push({
         role: "user",
         parts: [{ text: fullPrompt }],
       });
-    }
 
-    return history;
-  };
-
-  const handleSend = async () => {
-    if (!input.trim()) return;
-
-    const userMessage: Message = {
-      id: Date.now(),
-      text: input,
-      sender: "user",
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsTyping(true);
-
-    try {
       const response = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: buildGeminiHistory(),
+          contents: history,
           generationConfig: { responseMimeType: "text/plain" },
         }),
       });
@@ -138,6 +131,25 @@ export default function ChatBotUI() {
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    if (editId !== null) {
+      const updatedMessages = messages.map((msg) =>
+        msg.id === editId ? { ...msg, text: input } : msg
+      );
+      setMessages(updatedMessages);
+      setEditId(null);
+      setEditValue("");
+      setInput("");
+      await sendToBot(input);
+      return;
+    }
+
+    await sendToBot(input);
+    setInput("");
   };
 
   const parsePdfFile = useCallback(async (file: File) => {
@@ -204,13 +216,12 @@ export default function ChatBotUI() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-muted text-muted-foreground transition-colors duration-300">
-      <header className="bg-background shadow p-4 flex items-center justify-between text-xl font-bold px-6">
-        <span className="tracking-tight">🤖 ChatterSphere</span>
+      <header className="bg-background shadow p-4 text-left text-xl font-bold flex justify-between items-center">
+        <span>🤖 ChatterSphere</span>
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
-          className="text-muted-foreground hover:text-primary"
           aria-label="Toggle Theme"
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -218,29 +229,67 @@ export default function ChatBotUI() {
       </header>
 
       <main className="flex flex-col flex-1 p-4">
-        <Card className="flex flex-col flex-1 rounded-2xl shadow-md">
-          <CardContent className="flex-1 overflow-hidden p-4">
+        <Card className="flex flex-col flex-1">
+          <CardContent className="flex-1 overflow-hidden">
             <ScrollArea className="h-full pr-4">
               <div className="space-y-4">
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
+                    className={`flex ${
+                      msg.sender === "user" ? "justify-end" : "justify-start"
+                    }`}
                   >
-                    <div
-                      className={`max-w-xl px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
-                        msg.sender === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      {msg.text}
+                    <div className="relative">
+                      {editId === msg.id ? (
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            className="w-full"
+                          />
+                          <Button size="icon" onClick={handleSend}>
+                            <Check className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditId(null);
+                              setInput("");
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className={`group max-w-xl p-3 rounded-xl text-sm whitespace-pre-wrap ${
+                            msg.sender === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground"
+                          }`}
+                        >
+                          {msg.text}
+                          {msg.sender === "user" && (
+                            <button
+                              onClick={() => {
+                                setEditId(msg.id);
+                                setInput(msg.text);
+                              }}
+                              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-xs text-muted-foreground"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
                 {isTyping && (
-                  <div className="flex justify-start animate-pulse">
-                    <div className="max-w-xl px-4 py-3 rounded-2xl text-sm bg-secondary text-secondary-foreground">
+                  <div className="flex justify-start">
+                    <div className="max-w-sm p-3 rounded-xl text-sm bg-secondary text-secondary-foreground animate-pulse">
                       🤖 Typing...
                     </div>
                   </div>
@@ -261,8 +310,8 @@ export default function ChatBotUI() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me something..."
-            className="flex-1 rounded-full px-4 py-2"
+            placeholder="Type a message..."
+            className="flex-1"
           />
 
           <input
