@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Upload } from "lucide-react";
+import { Send, Upload, Sun, Moon } from "lucide-react";
 
 interface Message {
   id: number;
@@ -32,14 +32,15 @@ export default function ChatBotUI() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [pdfContent, setPdfContent] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState<boolean>(false);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const API_KEY = "AIzaSyDeADG2d12B0IZlgDvE5NyXFVPhjkdS698"; // ⚠️ Replace in production
+  const API_KEY = "AIzaSyDeADG2d12B0IZlgDvE5NyXFVPhjkdS698";
   const MODEL = "gemini-2.0-flash-lite";
   const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
-  // Load PDF.js script dynamically
   useEffect(() => {
     const loadPdfJs = async () => {
       if (!window.pdfjsLib) {
@@ -54,6 +55,15 @@ export default function ChatBotUI() {
       }
     };
     loadPdfJs();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedTheme = localStorage.getItem("theme");
+      const prefersDark = storedTheme === "dark";
+      setIsDark(prefersDark);
+      document.documentElement.classList.toggle("dark", prefersDark);
+    }
   }, []);
 
   useEffect(() => {
@@ -185,25 +195,40 @@ export default function ChatBotUI() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const toggleTheme = () => {
+    const newTheme = !isDark;
+    setIsDark(newTheme);
+    document.documentElement.classList.toggle("dark", newTheme);
+    localStorage.setItem("theme", newTheme ? "dark" : "light");
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full bg-muted text-muted-foreground">
-      <header className="bg-background shadow p-4 text-left text-xl font-bold pl-6">
-        🤖 ChatterSphere
+    <div className="flex flex-col h-screen w-full bg-muted text-muted-foreground transition-colors duration-300">
+      <header className="bg-background shadow p-4 flex items-center justify-between text-xl font-bold px-6">
+        <span className="tracking-tight">🤖 ChatterSphere</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="text-muted-foreground hover:text-primary"
+          aria-label="Toggle Theme"
+        >
+          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </Button>
       </header>
+
       <main className="flex flex-col flex-1 p-4">
-        <Card className="flex flex-col flex-1">
-          <CardContent className="flex-1 overflow-hidden">
+        <Card className="flex flex-col flex-1 rounded-2xl shadow-md">
+          <CardContent className="flex-1 overflow-hidden p-4">
             <ScrollArea className="h-full pr-4">
               <div className="space-y-4">
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${
-                      msg.sender === "user" ? "justify-end" : "justify-start"
-                    }`}
+                    className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
                   >
                     <div
-                      className={`max-w-sm p-3 rounded-xl text-sm ${
+                      className={`max-w-xl px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${
                         msg.sender === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-secondary text-secondary-foreground"
@@ -214,8 +239,8 @@ export default function ChatBotUI() {
                   </div>
                 ))}
                 {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="max-w-sm p-3 rounded-xl text-sm bg-secondary text-secondary-foreground animate-pulse">
+                  <div className="flex justify-start animate-pulse">
+                    <div className="max-w-xl px-4 py-3 rounded-2xl text-sm bg-secondary text-secondary-foreground">
                       🤖 Typing...
                     </div>
                   </div>
@@ -236,8 +261,8 @@ export default function ChatBotUI() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1"
+            placeholder="Ask me something..."
+            className="flex-1 rounded-full px-4 py-2"
           />
 
           <input
